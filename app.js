@@ -149,6 +149,18 @@ class GradingApp {
       this.renderSectionsSetup();
     });
 
+    // 模範解答・配点の全クリア
+    const clearBtn = document.getElementById('clearSectionsBtn');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        if (confirm('設定中の大問・配点マスタをすべてクリア（リセット）しますか？')) {
+          this.sections = [];
+          this.renderSectionsSetup();
+          this.showToast('大問・配点マスタをすべてクリアしました');
+        }
+      });
+    }
+
     // 模範解答PDFのアップロード
     const answerKeyPdfInput = document.getElementById('answerKeyPdfInput');
     document.getElementById('uploadAnswerKeyPdfBtn').addEventListener('click', () => {
