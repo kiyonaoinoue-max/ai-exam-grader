@@ -50,18 +50,27 @@ class GradingApp {
       document.getElementById('apiKeyInput').value = savedApiKey;
       this.grader.setApiKey(savedApiKey);
     }
-    const savedModel = localStorage.getItem('gemini_model') || 'gemini-2.5-flash';
+    let savedModel = localStorage.getItem('gemini_model') || 'gemini-1.5-flash';
+    // 旧バージョンの未対応モデルが残っている場合は自動的に 1.5-flash にマイグレーション
+    if (savedModel === 'gemini-2.5-flash') {
+      savedModel = 'gemini-1.5-flash';
+      localStorage.setItem('gemini_model', savedModel);
+    }
     document.getElementById('modelSelect').value = savedModel;
     this.grader.setModel(savedModel);
+    const targetModelElem = document.getElementById('gradeTargetModelName');
+    if (targetModelElem) targetModelElem.textContent = savedModel;
   }
 
   saveSettings() {
-    const apiKey = document.getElementById('apiKeyInput').value;
+    const apiKey = document.getElementById('apiKeyInput').value.trim();
     const model = document.getElementById('modelSelect').value;
     localStorage.setItem('gemini_api_key', apiKey);
     localStorage.setItem('gemini_model', model);
     this.grader.setApiKey(apiKey);
     this.grader.setModel(model);
+    const targetModelElem = document.getElementById('gradeTargetModelName');
+    if (targetModelElem) targetModelElem.textContent = model;
     this.showToast('設定を保存しました');
   }
 
@@ -77,6 +86,12 @@ class GradingApp {
 
     // APIキー・設定保存
     document.getElementById('saveSettingsBtn').addEventListener('click', () => this.saveSettings());
+    document.getElementById('modelSelect').addEventListener('change', (e) => {
+      this.grader.setModel(e.target.value);
+      localStorage.setItem('gemini_model', e.target.value);
+      const targetModelElem = document.getElementById('gradeTargetModelName');
+      if (targetModelElem) targetModelElem.textContent = e.target.value;
+    });
 
     // APIキー取得ガイドモーダルの開閉
     const helpApiKeyBtn = document.getElementById('helpApiKeyBtn');
