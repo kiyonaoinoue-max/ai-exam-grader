@@ -1288,26 +1288,30 @@ class GradingApp {
     });
   }
 
-  // テスト用ダミー答案用紙（Canvas画像）の生成
+  // テスト用ダミー答案用紙（Canvas画像）の生成（8名分）
   createDummyAnswerSheets() {
     if (this.students.length === 0) {
       document.getElementById('namesTextArea').value = SAMPLE_STUDENTS_TEXT;
       this.generateNumberedStudents();
     }
 
-    const dummyCount = Math.min(this.students.length, 4);
+    const dummyCount = Math.min(this.students.length, 8);
     this.pageImages = [];
 
     const dummyAnswers = [
       { q1_1: 'イ', q1_2: 'エ', q1_3: '3', q2_1: '(x-2)(x+5)', q2_2: '3√2', q2_3: 'x = (1±√5)/2', q3_1: '(2, -1)', q3_2: 'x=5で最大値8' },
       { q1_1: 'ア', q1_2: 'エ', q1_3: '3', q2_1: '(x+5)(x-2)', q2_2: '√18', q2_3: 'x = (1±√5)/2', q3_1: '(2, 1)', q3_2: '最大値8' },
       { q1_1: 'イ', q1_2: 'ウ', q1_3: '7', q2_1: '(x-3)(x+4)', q2_2: '3√2', q2_3: 'x = (1+√5)/2', q3_1: '(2, -1)', q3_2: 'x=5で8' },
-      { q1_1: 'イ', q1_2: 'エ', q1_3: '3', q2_1: '(x-2)(x+5)', q2_2: '3√2', q2_3: 'x = (-1±√5)/2', q3_1: '(2, -1)', q3_2: 'x=5で最大値8' }
+      { q1_1: 'イ', q1_2: 'エ', q1_3: '3', q2_1: '(x-2)(x+5)', q2_2: '3√2', q2_3: 'x = (-1±√5)/2', q3_1: '(2, -1)', q3_2: 'x=5で最大値8' },
+      { q1_1: 'イ', q1_2: 'エ', q1_3: '3', q2_1: '(x-2)(x+5)', q2_2: '3√2', q2_3: 'x = (1±√5)/2', q3_1: '(2, -1)', q3_2: 'x=5で最大値8' },
+      { q1_1: 'イ', q1_2: 'エ', q1_3: '3', q2_1: '(x+5)(x-2)', q2_2: '3√2', q2_3: 'x = (1±√5)/2', q3_1: '(2, -1)', q3_2: '最大値8 (x=5)' },
+      { q1_1: 'ウ', q1_2: 'エ', q1_3: '3', q2_1: '(x-2)(x+5)', q2_2: '6/√2', q2_3: 'x = (1±√5)/2', q3_1: '(2, -1)', q3_2: 'x=5で最大値8' },
+      { q1_1: 'イ', q1_2: 'ア', q1_3: '3', q2_1: '(x-2)(x+5)', q2_2: '3√2', q2_3: 'x = 1/2 ± √5/2', q3_1: '(2, -1)', q3_2: '最大値8' }
     ];
 
     for (let i = 0; i < dummyCount; i++) {
       const student = this.students[i];
-      const ans = dummyAnswers[i];
+      const ans = dummyAnswers[i % dummyAnswers.length];
 
       const canvas = document.createElement('canvas');
       canvas.width = 1200;
@@ -1345,7 +1349,7 @@ class GradingApp {
       ctx.fillText(student.examNumber, 200, 205);
 
       ctx.font = 'bold 32px "Noto Sans JP", cursive, sans-serif';
-      ctx.fillText(student.name, 500, 202);
+      ctx.fillText(student.name || `受験者 ${i + 1}`, 500, 202);
 
       // 大問1
       ctx.fillStyle = '#0f172a';
