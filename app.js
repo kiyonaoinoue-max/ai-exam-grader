@@ -1029,8 +1029,8 @@ class GradingApp {
         const item = queue.shift();
         if (item) {
           await gradeSingleStudent(item.student, item.index);
-          // わずかなウェイト（レートリミット保護）
-          await new Promise(r => setTimeout(r, 200));
+          // わずかなウェイト（レートリミット保護・RPM制限対策）
+          await new Promise(r => setTimeout(r, 400));
         }
       }
     });
@@ -1318,12 +1318,13 @@ class GradingApp {
       this.switchTemplate(mathTpl.id);
     }
 
-    if (this.students.length === 0) {
+    // 必ず8名のサンプル名簿を揃える（空、または8名未満、以前の4名名簿のままの場合は再生成）
+    if (this.students.length < 8) {
       document.getElementById('namesTextArea').value = SAMPLE_STUDENTS_TEXT;
       this.generateNumberedStudents();
     }
 
-    const dummyCount = Math.min(this.students.length, 8);
+    const dummyCount = 8;
     this.pageImages = [];
 
     const dummyAnswers = [

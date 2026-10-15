@@ -131,39 +131,60 @@ ${JSON.stringify(questionsList, null, 2)}
       }
     };
 
-    try {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody)
-      });
-
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`Gemini API エラー (${response.status}): ${errText}`);
-      }
-
-      const resJson = await response.json();
-      const candidateText = resJson.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!candidateText) {
-        throw new Error('Gemini API からの応答が空でした');
-      }
-
-      // JSONパース
-      let parsed;
+    const maxRetries = 3;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        parsed = JSON.parse(candidateText.trim());
-      } catch (e) {
-        // バッククォート囲み等の除去フォールバック
-        const cleaned = candidateText.replace(/```json/g, '').replace(/```/g, '').trim();
-        parsed = JSON.parse(cleaned);
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody)
+        });
+
+        if (!response.ok) {
+          const errText = await response.text();
+          // 429 (Rate Limit) または 503 (Overloaded) の場合は待機して自動リトライ
+          if ((response.status === 429 || response.status === 503) && attempt < maxRetries) {
+            const waitTime = (attempt + 1) * 2000;
+            console.warn(`Gemini API (${response.status}) 混雑/レート制限を検知。${waitTime}ms 後に再試行します... (試行 ${attempt + 1}/${maxRetries})`);
+            await new Promise(r => setTimeout(r, waitTime));
+            continue;
+          }
+          throw new Error(`Gemini API エラー (${response.status}): ${errText}`);
+        }
+
+        const resJson = await response.json();
+        const candidateText = resJson.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!candidateText) {
+          throw new Error('Gemini API からの応答が空でした');
+        }
+
+        // 堅牢なJSONパース（Markdownブロック・不完全なエスケープの救済）
+        let parsed = null;
+        try {
+          parsed = JSON.parse(candidateText.trim());
+        } catch (e1) {
+          const jsonMatch = candidateText.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            try {
+              parsed = JSON.parse(jsonMatch[0]);
+            } catch (e2) {
+              // LaTeX数式等の生バックスラッシュ (\pm, \frac, \sqrt 等) を安全にエスケープ
+              const sanitized = jsonMatch[0].replace(/\\(?![/u"bfnrt\\])/g, '\\\\');
+              parsed = JSON.parse(sanitized);
+            }
+          } else {
+            throw e1;
+          }
+        }
+
+        return parsed;
+
+      } catch (err) {
+        if (attempt >= maxRetries) {
+          console.error(`Gemini 採点呼び出し失敗 (最大リトライ超過・生徒: ${studentInfo.examNumber}):`, err);
+          throw err;
+        }
       }
-
-      return parsed;
-
-    } catch (err) {
-      console.error('Gemini 採点呼び出し失敗:', err);
-      throw err;
     }
   }
 
