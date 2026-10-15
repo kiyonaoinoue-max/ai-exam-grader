@@ -952,16 +952,26 @@ class GradingApp {
       return;
     }
 
+    // 入力欄のAPIキーを自動同期・保存（「保存」ボタン押し忘れ救済）
+    const inputKey = document.getElementById('apiKeyInput').value.trim();
+    const inputModel = document.getElementById('modelSelect').value;
+    if (inputKey) {
+      this.grader.setApiKey(inputKey);
+      this.grader.setModel(inputModel);
+      localStorage.setItem('gemini_api_key', inputKey);
+      localStorage.setItem('gemini_model', inputModel);
+    }
+
     if (!this.grader.apiKey) {
-      const confirmContinue = confirm(
-        '【確認】Gemini APIキーが設定されていません。\n\n' +
-        '実際の答案画像から手書き文字をAI認識・採点するには、画面右上の「Gemini Key」欄にAPIキーを入力して「保存」してください。\n\n' +
-        'このまま実行すると、APIキー未設定の状態で結果画面へ進みます。よろしいですか？'
+      alert(
+        '⚠️ Gemini APIキーが設定されていません。\n\n' +
+        '画面右上の「Gemini Key」欄にGoogle AI Studioで取得したAPIキーを入力してください。\n' +
+        '（「❓ 取得方法」ボタンから無料で1分で取得できます）'
       );
-      if (!confirmContinue) {
-        document.getElementById('apiKeyInput').focus();
-        return;
-      }
+      const keyInput = document.getElementById('apiKeyInput');
+      keyInput.focus();
+      keyInput.classList.add('ring-2', 'ring-red-500');
+      return;
     }
 
     this.isGrading = true;
@@ -970,6 +980,8 @@ class GradingApp {
 
     const totalStudents = this.students.length;
     let completedCount = 0;
+    let failedCount = 0;
+    let firstErrorMsg = '';
 
     // ブーストモード判定（ONなら3人同時、OFFなら1人ずつ）
     const isBoost = document.getElementById('boostModeCheckbox')?.checked ?? true;
@@ -1001,6 +1013,9 @@ class GradingApp {
         }
       } catch (err) {
         console.error(`生徒 ${student.examNumber} の採点に失敗:`, err);
+        failedCount++;
+        if (!firstErrorMsg) firstErrorMsg = err.message || String(err);
+
         student.grades = {};
         this.sections.forEach(sec => {
           sec.questions.forEach(q => {
@@ -1043,7 +1058,29 @@ class GradingApp {
     setTimeout(() => {
       modal.classList.add('hidden');
       this.isGrading = false;
-      this.showToast('全生徒のAI採点が完了しました！採点レビュー画面へ移動します');
+
+      // 全員失敗した場合の親切な診断ポップアップ
+      if (failedCount === totalStudents && totalStudents > 0) {
+        let advice = 'Gemini APIキーが有効か、通信環境（広告ブロック・プロキシ等）をご確認ください。';
+        if (firstErrorMsg.includes('400') || firstErrorMsg.includes('API_KEY_INVALID')) {
+          advice = 'APIキーが無効またはスペルミスがあります。Google AI Studioで再確認してください。';
+        } else if (firstErrorMsg.includes('403')) {
+          advice = 'APIキーの利用権限（アクセス制限）をご確認ください。';
+        } else if (firstErrorMsg.includes('404')) {
+          advice = '選択されたモデルが見つかりません。画面右上で「Gemini 1.5 Flash」に切り替えてお試しください。';
+        } else if (firstErrorMsg.includes('Failed to fetch') || firstErrorMsg.includes('NetworkError')) {
+          advice = 'APIサーバーへの通信がブロックされました。Chromeの広告ブロック機能（AdBlock, uBlock等）やセキュリティソフトをご確認ください。';
+        }
+
+        alert(
+          `【採点エラー】全生徒（${totalStudents}名）のAI採点に失敗しました。\n\n` +
+          `■ エラー内容: ${firstErrorMsg}\n\n` +
+          `■ 考えられる原因と対処法:\n${advice}`
+        );
+      } else {
+        this.showToast('全生徒のAI採点が完了しました！採点レビュー画面へ移動します');
+      }
+
       this.switchTab('review');
     }, 500);
   }
