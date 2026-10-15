@@ -252,9 +252,10 @@ class GradingApp {
     // 採点実行
     document.getElementById('startGradingBtn').addEventListener('click', () => this.startGradingProcess());
 
-    // 採点レビュー ナビゲーション
+    // 採点レビュー ナビゲーション & 再採点
     document.getElementById('prevReviewBtn').addEventListener('click', () => this.navigateReview(-1));
     document.getElementById('nextReviewBtn').addEventListener('click', () => this.navigateReview(1));
+    document.getElementById('regradeCurrentStudentBtn')?.addEventListener('click', () => this.regradeCurrentStudent());
     document.getElementById('reviewStudentSelect').addEventListener('change', (e) => {
       this.currentReviewIndex = parseInt(e.target.value, 10);
       this.renderReviewView();
@@ -1010,7 +1011,7 @@ class GradingApp {
               status: 'incorrect',
               awardedPoints: 0,
               maxPoints: q.points,
-              reason: 'APIエラーまたは読取失敗'
+              reason: err.message ? `エラー: ${err.message}` : 'APIエラーまたは読取失敗'
             };
           });
         });
@@ -1243,6 +1244,51 @@ class GradingApp {
       this.currentReviewIndex = newIdx;
       this.reviewCurrentPageIdx = 0;
       this.renderReviewView();
+    }
+  }
+
+  // レビュー画面で現在表示中の生徒のみを再採点
+  async regradeCurrentStudent() {
+    const student = this.students[this.currentReviewIndex];
+    if (!student) return;
+
+    if (!this.grader.apiKey) {
+      alert('画面右上のGemini KeyにAPIキーを入力して保存してください。');
+      return;
+    }
+
+    const btn = document.getElementById('regradeCurrentStudentBtn');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '⏳ 採点中...';
+    btn.disabled = true;
+
+    const studentImages = (student.pageIndices || []).map(pIdx => this.pageImages[pIdx]);
+
+    try {
+      this.showToast(`生徒 ${student.examNumber} (${student.name}) を再採点中...`);
+      const gradeResult = await this.grader.gradeStudent(studentImages, this.sections, student);
+
+      student.grades = {};
+      if (gradeResult && Array.isArray(gradeResult.results)) {
+        gradeResult.results.forEach(res => {
+          student.grades[res.questionId] = {
+            questionId: res.questionId,
+            number: res.number,
+            recognizedAnswer: res.recognizedAnswer,
+            status: res.status,
+            awardedPoints: Number(res.awardedPoints) || 0,
+            maxPoints: Number(res.maxPoints) || 0,
+            reason: res.reason || ''
+          };
+        });
+      }
+      this.renderReviewView();
+      this.showToast(`生徒 ${student.examNumber} の再採点が完了しました！✨`);
+    } catch (err) {
+      alert(`再採点に失敗しました: ${err.message}`);
+    } finally {
+      btn.innerHTML = originalText;
+      btn.disabled = false;
     }
   }
 
