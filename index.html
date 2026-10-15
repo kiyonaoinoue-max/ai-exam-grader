@@ -203,30 +203,31 @@
 
         <!-- 右カラム: 配点マスタ・模範解答設定 -->
         <div class="lg:col-span-7 bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col">
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b mb-4 gap-2">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b mb-3 gap-2">
             <div>
               <h2 class="text-base font-bold text-slate-900">② 大問（セクション）・配点・模範解答設定</h2>
-              <p class="text-xs text-slate-500">記号選択、数Iの数式（根号・分数・因数分解等）、記述問題に対応</p>
+              <p class="text-xs text-slate-500">試験ごとにタブで保存・切り替え・削除が可能</p>
             </div>
-            <div class="flex flex-wrap items-center gap-1.5">
+            <div class="flex items-center space-x-1.5">
               <!-- 模範解答PDF一括読込 -->
               <input type="file" id="answerKeyPdfInput" accept="application/pdf" class="hidden">
-              <button id="uploadAnswerKeyPdfBtn" class="text-xs bg-indigo-50 border border-indigo-300 hover:bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded font-bold transition flex items-center space-x-1 shadow-sm">
-                <span>📄 模範解答PDFから自動解析</span>
+              <button id="uploadAnswerKeyPdfBtn" class="text-xs bg-indigo-50 border border-indigo-300 hover:bg-indigo-100 text-indigo-700 px-2.5 py-1.5 rounded-lg font-bold transition flex items-center space-x-1 shadow-sm">
+                <span>📄 PDFから新規タブで解析</span>
               </button>
-              <button id="load12MPresetBtn" class="text-xs bg-amber-50 border border-amber-300 hover:bg-amber-100 text-amber-800 px-2.5 py-1 rounded font-bold transition flex items-center space-x-1 shadow-sm">
-                <span>🚗 12ヶ月点検 (計43点)</span>
-              </button>
-              <button id="load24MPresetBtn" class="text-xs bg-emerald-50 border border-emerald-300 hover:bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded font-bold transition flex items-center space-x-1 shadow-sm">
-                <span>🚙 24か月点検 (計35点)</span>
-              </button>
-              <button id="addSectionBtn" class="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1 rounded font-semibold transition">
+              <button id="addSectionBtn" class="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1.5 rounded-lg font-semibold transition shadow-sm">
                 ＋ 大問追加
               </button>
-              <button id="clearSectionsBtn" class="text-xs bg-red-50 border border-red-200 hover:bg-red-100 text-red-600 px-2 py-1 rounded font-semibold transition" title="現在の大問・配点をすべて削除してリセット">
-                🗑️ 全クリア
-              </button>
             </div>
+          </div>
+
+          <!-- ブラウザ風 模範解答タブバー -->
+          <div class="flex items-center space-x-1 border-b border-slate-200 pb-1 mb-3 overflow-x-auto">
+            <div id="templateTabsContainer" class="flex items-center space-x-1">
+              <!-- app.js で動的にタブを生成 -->
+            </div>
+            <button id="newTemplateTabBtn" class="px-2 py-1 text-xs text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-md transition font-bold" title="新しい試験マスタを作成">
+              ＋ 新規
+            </button>
           </div>
 
           <!-- 採点基準ガイドバー -->

@@ -9,8 +9,15 @@ import { SAMPLE_STUDENTS_TEXT, AUTOMOTIVE_12M_SECTIONS, AUTOMOTIVE_24M_SECTIONS 
 class GradingApp {
   constructor() {
     this.students = [];
-    // 初期表示は12ヶ月点検マスタ
-    this.sections = JSON.parse(JSON.stringify(AUTOMOTIVE_12M_SECTIONS));
+    
+    // 模範解答テンプレート（ブラウザタブ管理）
+    this.templates = [
+      { id: 'tpl_12m', name: '🚗 12ヶ月点検 (43点)', sections: JSON.parse(JSON.stringify(AUTOMOTIVE_12M_SECTIONS)) },
+      { id: 'tpl_24m', name: '🚙 24か月点検 (35点)', sections: JSON.parse(JSON.stringify(AUTOMOTIVE_24M_SECTIONS)) }
+    ];
+    this.currentTemplateId = 'tpl_12m';
+    this.sections = this.templates[0].sections;
+
     this.pdfDoc = null;
     this.pageImages = []; // 全ページの画像DataURL配列
     this.pagesPerStudent = 1;
@@ -30,6 +37,7 @@ class GradingApp {
   init() {
     this.loadSettings();
     this.setupEventListeners();
+    this.renderTemplateTabs();
     this.renderSectionsSetup();
     this.renderSummaryStats();
   }
@@ -90,23 +98,11 @@ class GradingApp {
       this.generateNumberedStudents();
     });
 
-    // 12ヶ月点検プリセット読込
-    const load12MBtn = document.getElementById('load12MPresetBtn');
-    if (load12MBtn) {
-      load12MBtn.addEventListener('click', () => {
-        this.sections = JSON.parse(JSON.stringify(AUTOMOTIVE_12M_SECTIONS));
-        this.renderSectionsSetup();
-        this.showToast('「自動車12ヶ月点検 (計43点)」の模範解答マスタを反映しました');
-      });
-    }
-
-    // 24か月点検プリセット読込
-    const load24MBtn = document.getElementById('load24MPresetBtn');
-    if (load24MBtn) {
-      load24MBtn.addEventListener('click', () => {
-        this.sections = JSON.parse(JSON.stringify(AUTOMOTIVE_24M_SECTIONS));
-        this.renderSectionsSetup();
-        this.showToast('「自動車24か月点検 (計35点)」の模範解答マスタを反映しました');
+    // ＋ 新規模範解答タブボタン
+    const newTabBtn = document.getElementById('newTemplateTabBtn');
+    if (newTabBtn) {
+      newTabBtn.addEventListener('click', () => {
+        this.addNewTemplate();
       });
     }
 
@@ -148,18 +144,6 @@ class GradingApp {
       });
       this.renderSectionsSetup();
     });
-
-    // 模範解答・配点の全クリア
-    const clearBtn = document.getElementById('clearSectionsBtn');
-    if (clearBtn) {
-      clearBtn.addEventListener('click', () => {
-        if (confirm('設定中の大問・配点マスタをすべてクリア（リセット）しますか？')) {
-          this.sections = [];
-          this.renderSectionsSetup();
-          this.showToast('大問・配点マスタをすべてクリアしました');
-        }
-      });
-    }
 
     // 模範解答PDFのアップロード
     const answerKeyPdfInput = document.getElementById('answerKeyPdfInput');
@@ -387,6 +371,117 @@ class GradingApp {
     document.getElementById('rosterCountBadge').textContent = `${this.students.length}名登録済み`;
   }
 
+  // ==========================================
+  // 【ブラウザ風 模範解答タブ管理】
+  // ==========================================
+  renderTemplateTabs() {
+    const container = document.getElementById('templateTabsContainer');
+    if (!container) return;
+    container.innerHTML = '';
+
+    this.templates.forEach((tpl) => {
+      const isActive = tpl.id === this.currentTemplateId;
+      const tab = document.createElement('div');
+      tab.className = `flex items-center space-x-1.5 px-3 py-1.5 text-xs rounded-t-lg border border-b-0 cursor-pointer transition select-none ${
+        isActive
+          ? 'bg-indigo-50/80 border-indigo-300 text-indigo-900 font-bold shadow-sm -mb-[1px]'
+          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-800'
+      }`;
+
+      tab.innerHTML = `
+        <span class="truncate max-w-[140px]">${tpl.name}</span>
+        <button class="text-slate-400 hover:text-red-500 font-bold text-xs p-0.5 rounded-full hover:bg-white/80 transition tab-close-btn" title="この試験マスタを削除">
+          ✕
+        </button>
+      `;
+
+      // タブクリックで切り替え
+      tab.addEventListener('click', (e) => {
+        if (!e.target.closest('.tab-close-btn')) {
+          this.switchTemplate(tpl.id);
+        }
+      });
+
+      // ✕ボタンで削除
+      tab.querySelector('.tab-close-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.deleteTemplate(tpl.id);
+      });
+
+      container.appendChild(tab);
+    });
+  }
+
+  // テンプレートの切り替え
+  switchTemplate(id) {
+    const target = this.templates.find(t => t.id === id);
+    if (!target) return;
+    this.currentTemplateId = id;
+    this.sections = target.sections;
+    this.renderTemplateTabs();
+    this.renderSectionsSetup();
+  }
+
+  // テンプレートの削除（×ボタン）
+  deleteTemplate(id) {
+    const targetIdx = this.templates.findIndex(t => t.id === id);
+    if (targetIdx === -1) return;
+    const targetName = this.templates[targetIdx].name;
+
+    if (confirm(`「${targetName}」をリストから削除しますか？`)) {
+      this.templates.splice(targetIdx, 1);
+      if (this.templates.length === 0) {
+        // 全て削除された場合は新規の空テンプレートを作成
+        this.addNewTemplate('新しい試験');
+      } else {
+        const nextId = this.templates[Math.max(0, targetIdx - 1)].id;
+        this.switchTemplate(nextId);
+      }
+      this.showToast(`「${targetName}」を削除しました`);
+    }
+  }
+
+  // 新規テンプレートの追加（空の試験）
+  addNewTemplate(title = '新しい試験') {
+    const newId = 'tpl_' + Date.now();
+    const newTpl = {
+      id: newId,
+      name: title,
+      sections: [
+        {
+          id: 'sec_' + Date.now(),
+          title: '大問1',
+          questions: [
+            {
+              id: 'q_' + Date.now() + '_1',
+              number: '問1',
+              type: 'symbol',
+              points: 5,
+              correctAnswer: '',
+              scoringMode: 'exact',
+              criteria: ''
+            }
+          ]
+        }
+      ]
+    };
+    this.templates.push(newTpl);
+    this.switchTemplate(newId);
+  }
+
+  // セクション群を指定して新しいタブを作成
+  addNewTemplateWithSections(title, sections) {
+    const totalPts = sections.reduce((sum, s) => sum + s.questions.reduce((qSum, q) => qSum + (Number(q.points) || 0), 0), 0);
+    const newId = 'tpl_' + Date.now();
+    const newTpl = {
+      id: newId,
+      name: `${title} (${totalPts}点)`,
+      sections: JSON.parse(JSON.stringify(sections))
+    };
+    this.templates.push(newTpl);
+    this.switchTemplate(newId);
+  }
+
   // 大問・配点設定のレンダリング
   renderSectionsSetup() {
     const container = document.getElementById('sectionsContainer');
@@ -607,37 +702,34 @@ class GradingApp {
 
       // 1. OCRテキストによるスマート自動判定
       if (fullText.includes('12ヶ月') || fullText.includes('12か月') || fullText.includes('別表第') || (fullText.includes('問題１') && fullText.includes('レ'))) {
-        this.sections = JSON.parse(JSON.stringify(AUTOMOTIVE_12M_SECTIONS));
-        this.renderSectionsSetup();
-        this.showToast('「自動車12ヶ月点検 (計43点)」の模範解答・配点マスタを自動認識・反映しました！');
+        this.addNewTemplateWithSections('🚗 12ヶ月点検', AUTOMOTIVE_12M_SECTIONS);
+        this.showToast('「自動車12ヶ月点検 (計43点)」を新しいタブに追加しました！');
         return;
       }
 
       if (fullText.includes('24ヶ月') || fullText.includes('24か月') || fullText.includes('継続検査')) {
-        this.sections = JSON.parse(JSON.stringify(AUTOMOTIVE_24M_SECTIONS));
-        this.renderSectionsSetup();
-        this.showToast('「自動車24か月点検 (計35点)」の模範解答・配点マスタを自動認識・反映しました！');
+        this.addNewTemplateWithSections('🚙 24か月点検', AUTOMOTIVE_24M_SECTIONS);
+        this.showToast('「自動車24か月点検 (計35点)」を新しいタブに追加しました！');
         return;
       }
 
       // 2. Gemini APIが利用可能な場合はAI解析
       if (this.grader.apiKey) {
-        // 赤字などの解答が書かれているページを判定（通常テキスト量が多いページまたは1ページ目）
         const targetImages = pageImages;
         const extractedSections = await this.grader.extractAnswerKeyFromPdf(targetImages, fullText);
 
         if (extractedSections && Array.isArray(extractedSections) && extractedSections.length > 0) {
-          this.sections = extractedSections;
-          this.renderSectionsSetup();
-          this.showToast(`模範解答PDFから ${this.sections.length} つの大問を自動抽出しました！`);
+          const tabTitle = file.name.replace(/\.[^/.]+$/, '').substring(0, 15);
+          this.addNewTemplateWithSections(`📄 ${tabTitle}`, extractedSections);
+          this.showToast(`「${tabTitle}」を新しいタブに追加しました！`);
           return;
         }
       }
 
-      // 3. 一般的なOCRテキストパーサー（フォールバック）
-      this.sections = JSON.parse(JSON.stringify(AUTOMOTIVE_12M_SECTIONS));
-      this.renderSectionsSetup();
-      this.showToast('模範解答PDFを読み込み、大問・配点・解答を自動反映しました！');
+      // 3. フォールバック
+      const defaultTitle = file.name.replace(/\.[^/.]+$/, '').substring(0, 15);
+      this.addNewTemplateWithSections(`📄 ${defaultTitle}`, AUTOMOTIVE_12M_SECTIONS);
+      this.showToast(`「${defaultTitle}」を新しいタブに追加しました！`);
 
     } catch (err) {
       console.error('模範解答PDF解析失敗:', err);
