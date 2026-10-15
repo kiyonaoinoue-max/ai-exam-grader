@@ -151,5 +151,35 @@ export const AUTOMOTIVE_12M_SECTIONS = [
   }
 ];
 
+// ③ 数学I 基礎学力確認テスト 解答用紙マスタ (60点満点)
+export const MATH1_SECTIONS = [
+  {
+    id: 'sec_1',
+    title: '大問1【基礎・記号選択】',
+    questions: [
+      { id: 'q1_1', number: '問1(1)', type: 'symbol', points: 5, correctAnswer: 'イ', scoringMode: 'exact', criteria: '完全一致' },
+      { id: 'q1_2', number: '問1(2)', type: 'symbol', points: 5, correctAnswer: 'エ', scoringMode: 'exact', criteria: '完全一致' },
+      { id: 'q1_3', number: '問1(3)', type: 'symbol', points: 5, correctAnswer: '3', scoringMode: 'exact', criteria: '数字の3。手書き文字の癖に注意' }
+    ]
+  },
+  {
+    id: 'sec_2',
+    title: '大問2【数I：数と式・方程式】',
+    questions: [
+      { id: 'q2_1', number: '問2(1) 因数分解', type: 'math', points: 10, correctAnswer: '(x - 2)(x + 5)', scoringMode: 'flexible', criteria: '(x + 5)(x - 2) の順序逆も正解とする' },
+      { id: 'q2_2', number: '問2(2) 根号の計算', type: 'math', points: 10, correctAnswer: '3√2', scoringMode: 'custom', criteria: '有理化済みであること。√18は△5点' },
+      { id: 'q2_3', number: '問2(3) 2次方程式の解', type: 'math', points: 15, correctAnswer: 'x = (1 ± √5) / 2', scoringMode: 'flexible', criteria: 'x = (1+√5)/2, (1-√5)/2 も正解。符号ミスは0点' }
+    ]
+  },
+  {
+    id: 'sec_3',
+    title: '大問3【数I：2次関数の最大・最小】',
+    questions: [
+      { id: 'q3_1', number: '問3(1) 頂点の座標', type: 'math', points: 10, correctAnswer: '(2, -1)', scoringMode: 'flexible', criteria: 'x=2, y=-1 の記載でも正解' },
+      { id: 'q3_2', number: '問3(2) 最大値', type: 'math', points: 10, correctAnswer: 'x = 5 で 最大値 8', scoringMode: 'custom', criteria: '最大値8のみ記載の場合は△5点' }
+    ]
+  }
+];
+
 export const AUTOMOTIVE_SECTIONS = AUTOMOTIVE_12M_SECTIONS;
-export const SAMPLE_SECTIONS = AUTOMOTIVE_12M_SECTIONS;
+export const SAMPLE_SECTIONS = MATH1_SECTIONS;

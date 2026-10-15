@@ -4,7 +4,7 @@
 
 import { GeminiGrader } from './gemini.js';
 import { exportGradingToExcel } from './excel.js';
-import { SAMPLE_STUDENTS_TEXT, AUTOMOTIVE_12M_SECTIONS, AUTOMOTIVE_24M_SECTIONS } from './sample_data.js';
+import { SAMPLE_STUDENTS_TEXT, AUTOMOTIVE_12M_SECTIONS, AUTOMOTIVE_24M_SECTIONS, MATH1_SECTIONS } from './sample_data.js';
 
 class GradingApp {
   constructor() {
@@ -13,7 +13,8 @@ class GradingApp {
     // 模範解答テンプレート（ブラウザタブ管理）
     this.templates = [
       { id: 'tpl_12m', name: '🚗 12ヶ月点検 (43点)', sections: JSON.parse(JSON.stringify(AUTOMOTIVE_12M_SECTIONS)) },
-      { id: 'tpl_24m', name: '🚙 24か月点検 (35点)', sections: JSON.parse(JSON.stringify(AUTOMOTIVE_24M_SECTIONS)) }
+      { id: 'tpl_24m', name: '🚙 24か月点検 (35点)', sections: JSON.parse(JSON.stringify(AUTOMOTIVE_24M_SECTIONS)) },
+      { id: 'tpl_math1', name: '📐 数学I サンプル (60点)', sections: JSON.parse(JSON.stringify(MATH1_SECTIONS)) }
     ];
     this.currentTemplateId = 'tpl_12m';
     this.sections = this.templates[0].sections;
@@ -103,6 +104,25 @@ class GradingApp {
     if (newTabBtn) {
       newTabBtn.addEventListener('click', () => {
         this.addNewTemplate();
+      });
+    }
+
+    // サンプル模範解答の追加ドロップダウン
+    const sampleSelect = document.getElementById('loadSampleTemplateSelect');
+    if (sampleSelect) {
+      sampleSelect.addEventListener('change', (e) => {
+        const val = e.target.value;
+        if (val === 'math1') {
+          this.addNewTemplateWithSections('📐 数学I サンプル', MATH1_SECTIONS);
+          this.showToast('「数学I サンプル (計60点)」をタブに追加しました');
+        } else if (val === '12m') {
+          this.addNewTemplateWithSections('🚗 12ヶ月点検', AUTOMOTIVE_12M_SECTIONS);
+          this.showToast('「自動車12ヶ月点検 (計43点)」をタブに追加しました');
+        } else if (val === '24m') {
+          this.addNewTemplateWithSections('🚙 24か月点検', AUTOMOTIVE_24M_SECTIONS);
+          this.showToast('「自動車24か月点検 (計35点)」をタブに追加しました');
+        }
+        e.target.value = ''; // 選択をリセット
       });
     }
 
@@ -1290,6 +1310,14 @@ class GradingApp {
 
   // テスト用ダミー答案用紙（Canvas画像）の生成（8名分）
   createDummyAnswerSheets() {
+    // 数学Iサンプルタブを自動選択（なければタブを追加）
+    let mathTpl = this.templates.find(t => t.id === 'tpl_math1' || t.name.includes('数学I'));
+    if (!mathTpl) {
+      this.addNewTemplateWithSections('📐 数学I サンプル', MATH1_SECTIONS);
+    } else {
+      this.switchTemplate(mathTpl.id);
+    }
+
     if (this.students.length === 0) {
       document.getElementById('namesTextArea').value = SAMPLE_STUDENTS_TEXT;
       this.generateNumberedStudents();

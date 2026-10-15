@@ -221,13 +221,19 @@
           </div>
 
           <!-- ブラウザ風 模範解答タブバー -->
-          <div class="flex items-center space-x-1 border-b border-slate-200 pb-1 mb-3 overflow-x-auto">
+          <div class="flex items-center space-x-1.5 border-b border-slate-200 pb-1 mb-3 overflow-x-auto">
             <div id="templateTabsContainer" class="flex items-center space-x-1">
               <!-- app.js で動的にタブを生成 -->
             </div>
-            <button id="newTemplateTabBtn" class="px-2 py-1 text-xs text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-md transition font-bold" title="新しい試験マスタを作成">
+            <button id="newTemplateTabBtn" class="px-2 py-1 text-xs text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-md transition font-bold whitespace-nowrap" title="新しい試験マスタを作成">
               ＋ 新規
             </button>
+            <select id="loadSampleTemplateSelect" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded border border-slate-300 font-medium cursor-pointer whitespace-nowrap">
+              <option value="">＋ サンプル読込...</option>
+              <option value="math1">📐 数学I サンプル (60点)</option>
+              <option value="12m">🚗 12ヶ月点検 (43点)</option>
+              <option value="24m">🚙 24か月点検 (35点)</option>
+            </select>
           </div>
 
           <!-- 採点基準ガイドバー -->
