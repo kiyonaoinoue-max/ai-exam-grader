@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI答案採点システム - スキャン照合・自動集計・Excel出力</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- PDF.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <!-- SheetJS (xlsx) CDN -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Inter', 'Noto Sans JP', sans-serif;
+    }
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    /* カスタムスクロールバー */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col">
+
+  <!-- ヘッダー -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between items-center h-16">
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold text-xl shadow-md">
+            AI
+          </div>
+          <div>
+            <h1 class="text-lg font-bold text-slate-900 leading-tight">AI答案採点システム</h1>
+            <p class="text-xs text-slate-500">PDFスキャン照合・数I数式判定・セクション集計・Excel出力</p>
+          </div>
+        </div>
+
+        <!-- API設定・モデル選択 -->
+        <div class="flex items-center space-x-3">
+          <div class="flex items-center space-x-2 bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1 text-xs">
+            <span class="text-slate-500 font-medium">Gemini Key:</span>
+            <input type="password" id="apiKeyInput" placeholder="AIzaSy... / AQ..." 
+                   class="bg-transparent border-none text-xs w-36 focus:outline-none font-mono">
+            <button id="helpApiKeyBtn" class="text-indigo-600 hover:text-indigo-800 text-[11px] underline font-semibold transition" title="APIキーの取得方法を見る">
+              ❓ 取得方法
+            </button>
+            <select id="modelSelect" class="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-xs text-slate-700">
+              <option value="gemini-2.5-flash">Gemini 2.5 Flash (推奨)</option>
+              <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+              <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+            </select>
+            <button id="saveSettingsBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-0.5 rounded font-medium transition shadow-sm">
+              保存
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ステップナビゲーションタブ -->
+    <div class="bg-slate-50 border-t border-slate-200">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <nav class="flex space-x-1 sm:space-x-4 overflow-x-auto py-2 text-sm">
+          <button class="tab-btn px-3 py-2 rounded-md font-semibold text-indigo-600 border-b-2 border-indigo-600 flex items-center space-x-1.5 whitespace-nowrap" data-tab="setup">
+            <span class="w-5 h-5 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-bold">1</span>
+            <span>名簿・配点設定</span>
+          </button>
+          <button class="tab-btn px-3 py-2 rounded-md text-slate-500 hover:text-slate-700 border-b-2 border-transparent flex items-center space-x-1.5 whitespace-nowrap" data-tab="upload">
+            <span class="w-5 h-5 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-xs font-bold">2</span>
+            <span>PDF取込・分割</span>
+          </button>
+          <button class="tab-btn px-3 py-2 rounded-md text-slate-500 hover:text-slate-700 border-b-2 border-transparent flex items-center space-x-1.5 whitespace-nowrap" data-tab="verify">
+            <span class="w-5 h-5 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-xs font-bold">3</span>
+            <span>【目視確認①】番号照合</span>
+          </button>
+          <button class="tab-btn px-3 py-2 rounded-md text-slate-500 hover:text-slate-700 border-b-2 border-transparent flex items-center space-x-1.5 whitespace-nowrap" data-tab="grade">
+            <span class="w-5 h-5 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-xs font-bold">4</span>
+            <span>AI自動採点実行</span>
+          </button>
+          <button class="tab-btn px-3 py-2 rounded-md text-slate-500 hover:text-slate-700 border-b-2 border-transparent flex items-center space-x-1.5 whitespace-nowrap" data-tab="review">
+            <span class="w-5 h-5 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-xs font-bold">5</span>
+            <span>【目視確認②】採点レビュー</span>
+          </button>
+          <button class="tab-btn px-3 py-2 rounded-md text-slate-500 hover:text-slate-700 border-b-2 border-transparent flex items-center space-x-1.5 whitespace-nowrap" data-tab="export">
+            <span class="w-5 h-5 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-xs font-bold">6</span>
+            <span>Excel出力</span>
+          </button>
+        </nav>
+      </div>
+    </div>
+  </header>
+
+  <!-- メインコンテンツ領域 -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full">
+
+    <!-- ======================================================== -->
+    <!-- タブ 1: 名簿一括登録 ＆ 配点・模範解答設定 -->
+    <!-- ======================================================== -->
+    <section id="tab-setup" class="tab-content">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- 左カラム: 受験者名簿の一括生成 -->
+        <div class="lg:col-span-5 bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col">
+          <div class="flex items-center justify-between pb-3 border-b mb-3">
+            <div>
+              <h2 class="text-base font-bold text-slate-900">① 受験者登録（受験番号優先・氏名任意）</h2>
+              <p class="text-xs text-slate-500">個人情報を保持せず、受験番号のみで安全に採点・集計可能</p>
+            </div>
+            <button id="loadSampleNamesBtn" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 rounded transition">
+              サンプル読込
+            </button>
+          </div>
+
+          <!-- プライバシー保護ガイドバナー -->
+          <div class="bg-emerald-50 border border-emerald-200 text-emerald-900 px-3 py-2 rounded-lg text-xs mb-3 flex items-start space-x-2">
+            <span class="text-emerald-600 font-bold text-sm leading-none mt-0.5">🛡️</span>
+            <div>
+              <span class="font-bold">プライバシー安全設計:</span>
+              <p class="text-[11px] text-emerald-700 mt-0.5 leading-tight">氏名の登録は不要（任意）です。生徒の個人名をAIに送信せず、受験番号（ID）のみで採点・Excel出力まで完結できます。</p>
+            </div>
+          </div>
+
+          <!-- ナンバリング設定（人数指定またはコピペ） -->
+          <div class="bg-indigo-50/50 p-3 rounded-lg border border-indigo-100 mb-3 space-y-2.5">
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">開始番号</label>
+                <input type="number" id="startNumberInput" value="1001" 
+                       class="w-full px-2.5 py-1.5 text-sm font-mono font-bold border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">受験者人数</label>
+                <input type="number" id="studentCountInput" value="30" min="1" max="1000" 
+                       class="w-full px-2.5 py-1.5 text-sm font-mono font-bold border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+              </div>
+            </div>
+            <div class="flex items-center space-x-2">
+              <button id="generateAnonymousRosterBtn" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 rounded shadow transition flex items-center justify-center space-x-1">
+                <span>🛡️ 番号のみで一括生成</span>
+              </button>
+              <button id="generateRosterBtn" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 rounded shadow transition flex items-center justify-center space-x-1">
+                <span>📝 氏名テキストから生成</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <div class="flex justify-between items-center mb-1">
+              <label class="block text-xs font-semibold text-slate-700">氏名リスト（任意・空欄可）</label>
+              <span class="text-[10px] text-slate-400">Excelからコピペ可能</span>
+            </div>
+            <textarea id="namesTextArea" rows="3" placeholder="（任意）氏名を入力する場合は改行区切りで貼り付け&#10;入力しない場合は「番号のみで一括生成」をご利用ください" 
+                      class="w-full p-2.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono"></textarea>
+          </div>
+
+          <!-- 生成された名簿テーブルプレビュー -->
+          <div class="flex-1 border rounded-lg overflow-hidden flex flex-col min-h-[220px]">
+            <div class="bg-slate-50 px-3 py-2 border-b flex justify-between items-center text-xs font-bold text-slate-700">
+              <span>登録名簿プレビュー</span>
+              <span id="rosterCountBadge" class="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded font-mono">0名登録済み</span>
+            </div>
+            <div class="overflow-y-auto flex-1 max-h-[300px]">
+              <table class="w-full text-left text-xs">
+                <thead class="bg-slate-100 text-slate-600 sticky top-0">
+                  <tr>
+                    <th class="py-2 px-3 w-10">No</th>
+                    <th class="py-2 px-3 w-28">受験番号</th>
+                    <th class="py-2 px-3">氏名</th>
+                    <th class="py-2 px-3 w-16 text-center">操作</th>
+                  </tr>
+                </thead>
+                <tbody id="rosterTableBody">
+                  <tr>
+                    <td colspan="4" class="py-6 text-center text-slate-400">
+                      氏名を入力して「自動ナンバリング生成」を押してください
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右カラム: 配点マスタ・模範解答設定 -->
+        <div class="lg:col-span-7 bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b mb-4 gap-2">
+            <div>
+              <h2 class="text-base font-bold text-slate-900">② 大問（セクション）・配点・模範解答設定</h2>
+              <p class="text-xs text-slate-500">記号選択、数Iの数式（根号・分数・因数分解等）、記述問題に対応</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-1.5">
+              <!-- 模範解答PDF一括読込 -->
+              <input type="file" id="answerKeyPdfInput" accept="application/pdf" class="hidden">
+              <button id="uploadAnswerKeyPdfBtn" class="text-xs bg-indigo-50 border border-indigo-300 hover:bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded font-bold transition flex items-center space-x-1 shadow-sm">
+                <span>📄 模範解答PDFから自動解析</span>
+              </button>
+              <button id="load12MPresetBtn" class="text-xs bg-amber-50 border border-amber-300 hover:bg-amber-100 text-amber-800 px-2.5 py-1 rounded font-bold transition flex items-center space-x-1 shadow-sm">
+                <span>🚗 12ヶ月点検 (計43点)</span>
+              </button>
+              <button id="load24MPresetBtn" class="text-xs bg-emerald-50 border border-emerald-300 hover:bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded font-bold transition flex items-center space-x-1 shadow-sm">
+                <span>🚙 24か月点検 (計35点)</span>
+              </button>
+              <button id="addSectionBtn" class="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-1 rounded font-semibold transition">
+                ＋ 大問追加
+              </button>
+            </div>
+          </div>
+
+          <!-- 採点基準ガイドバー -->
+          <div class="bg-indigo-50/70 border border-indigo-100 rounded-lg p-2.5 mb-3 flex items-center justify-between text-xs text-indigo-950">
+            <div class="flex items-center space-x-3">
+              <span class="font-bold">🎯 採点基準の設定:</span>
+              <span class="bg-white px-1.5 py-0.5 rounded border border-indigo-200 font-medium">① 完全一致 (記号・数値)</span>
+              <span class="bg-white px-1.5 py-0.5 rounded border border-indigo-200 font-medium">② 同値・部分一致 (数式変形・表記揺れ)</span>
+              <span class="bg-white px-1.5 py-0.5 rounded border border-indigo-200 font-medium">③ カスタム指示 (自由文)</span>
+            </div>
+          </div>
+
+          <!-- 合計満点表示バナー -->
+          <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 mb-4 flex items-center justify-between">
+            <span class="text-xs font-medium text-slate-600">全大問の合計満点:</span>
+            <span id="totalScoreDisplay" class="text-lg font-bold font-mono text-indigo-600">0 点</span>
+          </div>
+
+          <!-- 各セクションリスト -->
+          <div id="sectionsContainer" class="space-y-4 overflow-y-auto max-h-[500px] pr-1">
+            <!-- app.js で動的描画 -->
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+
+    <!-- ======================================================== -->
+    <!-- タブ 2: PDF取込・自動分割 -->
+    <!-- ======================================================== -->
+    <section id="tab-upload" class="tab-content hidden">
+      <div class="max-w-3xl mx-auto bg-white p-8 rounded-xl border border-slate-200 shadow-sm">
+        <div class="text-center mb-6">
+          <h2 class="text-xl font-bold text-slate-900">スキャン済みPDFの取り込みとページ分割</h2>
+          <p class="text-sm text-slate-500 mt-1">全員分がまとまってスキャンされた大きなPDFファイルをアップロードしてください</p>
+        </div>
+
+        <!-- 1人あたりの枚数設定 -->
+        <div class="bg-indigo-50 border border-indigo-100 rounded-lg p-4 mb-6 flex items-center justify-between">
+          <div>
+            <label class="block text-sm font-bold text-indigo-950">1人あたりの回答用紙枚数</label>
+            <p class="text-xs text-indigo-700 mt-0.5">例: 1人2枚なら、1〜2ページが1人目、3〜4ページが2人目として自動分割されます</p>
+          </div>
+          <div class="flex items-center space-x-2">
+            <select id="pagesPerStudentSelect" class="bg-white border border-indigo-300 font-bold text-sm px-3 py-2 rounded-lg text-indigo-900 shadow-sm focus:outline-none">
+              <option value="1">1 枚 / 人</option>
+              <option value="2">2 枚 / 人</option>
+              <option value="3">3 枚 / 人</option>
+              <option value="4">4 枚 / 人</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- ドロップゾーン -->
+        <div id="pdfDropZone" class="border-2 border-dashed border-slate-300 hover:border-indigo-500 rounded-2xl p-10 text-center cursor-pointer transition bg-slate-50/50 hover:bg-indigo-50/30">
+          <input type="file" id="pdfFileInput" accept="application/pdf" class="hidden">
+          <div class="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-3 shadow-inner">
+            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+            </svg>
+          </div>
+          <p class="text-base font-bold text-slate-800">PDFファイルをここにドラッグ＆ドロップ</p>
+          <p class="text-xs text-slate-500 mt-1">または クリックしてスキャンファイルを選択</p>
+          <div id="pdfStatusText" class="mt-4 text-xs font-mono font-semibold text-indigo-600"></div>
+        </div>
+
+        <!-- テスト用ダミーデータ読込ボタン -->
+        <div class="mt-4 text-center">
+          <button id="loadDummyAnswersBtn" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 font-semibold px-4 py-2 rounded-lg transition inline-flex items-center space-x-1.5">
+            <span>📄 手元にスキャンPDFがない場合: テスト用サンプル答案(4名分)を生成して試す</span>
+          </button>
+        </div>
+
+        <!-- ローディング中 -->
+        <div id="pdfLoadingIndicator" class="hidden mt-6 text-center">
+          <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-indigo-600 border-t-transparent"></div>
+          <p class="text-sm font-semibold text-slate-700 mt-2">高解像度画像に変換中... しばらくお待ちください</p>
+        </div>
+
+        <!-- 分割サマリー -->
+        <div class="mt-6 text-center">
+          <p id="splitSummaryText" class="text-sm font-mono font-medium text-slate-600"></p>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ======================================================== -->
+    <!-- タブ 3: 【第1回目視確認】 受験番号・スキャン照合UI -->
+    <!-- ======================================================== -->
+    <section id="tab-verify" class="tab-content hidden">
+      <!-- 空状態 -->
+      <div id="verifyEmptyState" class="bg-white p-12 rounded-xl text-center border border-slate-200">
+        <p class="text-base text-slate-600 font-medium">まずは「名簿・配点設定」と「PDF取込」を完了させてください。</p>
+      </div>
+
+      <!-- メイン確認UI -->
+      <div id="verifyMainContent" class="grid grid-cols-1 lg:grid-cols-12 gap-6 hidden">
+
+        <!-- 左カラム: 答案PDF画像プレビュー -->
+        <div class="lg:col-span-8 bg-slate-800 rounded-xl p-4 shadow-sm flex flex-col h-[750px]">
+          <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-700 text-white text-xs">
+            <span class="font-medium text-slate-300">答案画像プレビュー（ヘッダー・手書き部分を拡大確認）</span>
+            <div id="verifyPageControls" class="flex space-x-1"></div>
+          </div>
+          <div class="flex-1 overflow-auto bg-slate-900 rounded-lg flex items-start justify-center p-2 relative">
+            <img id="verifyPreviewImage" src="" alt="答案画像" 
+                 class="max-w-full rounded shadow-lg transition-transform duration-100 origin-top">
+          </div>
+        </div>
+
+        <!-- 右カラム: 受験者照合・番号修正フォーム -->
+        <div class="lg:col-span-4 bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between pb-3 border-b mb-4">
+              <div>
+                <span class="text-xs font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
+                  第1回目視確認
+                </span>
+                <h3 class="text-base font-bold text-slate-900 mt-1">受験番号と氏名の確認</h3>
+              </div>
+              <span id="verifyProgressText" class="text-sm font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded">
+                1 / 1 人目
+              </span>
+            </div>
+
+            <div class="bg-amber-50/70 border border-amber-200/80 rounded-lg p-3 text-xs text-amber-900 mb-4">
+              <span class="font-bold">💡 外国人の手書き数字のチェック:</span>
+              <p class="mt-1 text-slate-600">答案画像に書かれた番号を目視し、もし自動割り当て番号と異なる場合はここで修正してください。</p>
+            </div>
+
+            <div class="space-y-4">
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">照合する受験番号</label>
+                <input type="text" id="verifyExamNumberInput" 
+                       class="w-full px-3 py-2 text-lg font-mono font-bold border-2 border-indigo-500 rounded-lg focus:outline-none bg-indigo-50/30">
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">氏名</label>
+                <input type="text" id="verifyNameInput" 
+                       class="w-full px-3 py-2 text-base font-semibold border border-slate-300 rounded-lg focus:outline-none">
+              </div>
+            </div>
+          </div>
+
+          <!-- 操作ボタン群 -->
+          <div class="pt-4 border-t space-y-2">
+            <button id="saveVerifyBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg shadow transition flex items-center justify-center space-x-2">
+              <span>確定して次の受験者へ</span>
+              <span class="text-xs bg-indigo-500 px-1.5 py-0.5 rounded font-mono">Enter ⏎</span>
+            </button>
+
+            <div class="grid grid-cols-2 gap-2">
+              <button id="prevVerifyBtn" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2 text-xs rounded transition">
+                ← 前の人 (Ctrl+←)
+              </button>
+              <button id="nextVerifyBtn" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2 text-xs rounded transition">
+                次の人へ (Ctrl+→) →
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+
+    <!-- ======================================================== -->
+    <!-- タブ 4: AI自動採点実行 -->
+    <!-- ======================================================== -->
+    <section id="tab-grade" class="tab-content hidden">
+      <div class="max-w-2xl mx-auto bg-white p-8 rounded-xl border border-slate-200 shadow-sm text-center">
+        <div class="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-indigo-100 shadow-sm">
+          <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+        </div>
+
+        <h2 class="text-xl font-bold text-slate-900 mb-2">AI自動採点の実行</h2>
+        <p class="text-sm text-slate-500 mb-6">
+          登録された模範解答と各生徒の答案画像を照合し、記号問題・数I数式問題の自動採点を行います。
+        </p>
+
+        <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 text-left text-xs space-y-2 mb-6">
+          <div class="flex justify-between items-center">
+            <span class="text-slate-500">採点対象人数:</span>
+            <span id="gradeTargetCount" class="font-bold text-slate-800">全登録生徒</span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="text-slate-500">使用AIモデル:</span>
+            <span class="font-mono font-bold text-indigo-600">Gemini 2.5 Flash</span>
+          </div>
+          <!-- ターボモード切り替え -->
+          <div class="flex justify-between items-center pt-2 border-t border-slate-200">
+            <div class="flex items-center space-x-1.5">
+              <span class="text-amber-500 text-base">🏎️💨</span>
+              <span class="font-extrabold text-slate-800 tracking-wide font-mono">TURBO MODE:</span>
+              <span class="text-[11px] text-slate-400">（3スレッド並列処理でスピード3倍UP）</span>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="boostModeCheckbox" checked class="sr-only peer">
+              <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-amber-500 peer-checked:to-red-500 shadow-inner"></div>
+              <span id="boostBadge" class="ml-2 text-xs font-black text-amber-600 font-mono tracking-wider">TURBO ON 🚀</span>
+            </label>
+          </div>
+        </div>
+
+        <button id="startGradingBtn" class="bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-bold text-base px-8 py-3.5 rounded-xl shadow-lg transition transform hover:-translate-y-0.5 w-full sm:w-auto flex items-center justify-center mx-auto space-x-2">
+          <span>🚀 AI自動採点を一括スタート</span>
+        </button>
+      </div>
+    </section>
+
+
+    <!-- ======================================================== -->
+    <!-- タブ 5: 【第2回目視確認】 採点レビュー＆手動修正 -->
+    <!-- ======================================================== -->
+    <section id="tab-review" class="tab-content hidden">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- 左カラム: 答案画像プレビュー -->
+        <div class="lg:col-span-6 bg-slate-800 rounded-xl p-4 shadow-sm flex flex-col h-[750px]">
+          <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-700 text-white text-xs">
+            <span class="font-medium text-slate-300">答案画像（採点箇所との見比べ）</span>
+            <div id="reviewPageControls" class="flex space-x-1"></div>
+          </div>
+          <div class="flex-1 overflow-auto bg-slate-900 rounded-lg flex items-start justify-center p-2">
+            <img id="reviewPreviewImage" src="" alt="答案画像" class="max-w-full rounded shadow-lg">
+          </div>
+        </div>
+
+        <!-- 右カラム: 設問別採点結果・修正UI -->
+        <div class="lg:col-span-6 bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col h-[750px]">
+          <!-- ヘッダー -->
+          <div class="flex items-center justify-between pb-3 border-b mb-3">
+            <div>
+              <span class="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
+                第2回目視確認
+              </span>
+              <h3 class="text-base font-bold text-slate-900 mt-1">採点結果レビュー＆手動修正</h3>
+            </div>
+            <div class="flex items-center space-x-2">
+              <span id="reviewProgressBadge" class="text-xs font-mono font-semibold text-slate-500">1 / 1 人目</span>
+              <select id="reviewStudentSelect" class="border rounded px-2 py-1 text-xs font-semibold text-slate-800 bg-slate-50"></select>
+            </div>
+          </div>
+
+          <!-- 生徒の総合得点バナー -->
+          <div class="bg-indigo-50 border border-indigo-100 rounded-lg p-3 mb-3 flex items-center justify-between">
+            <span id="reviewTotalScoreBadge" class="text-base font-bold text-indigo-900 font-mono">
+              総合得点: 0 / 0 点 (0%)
+            </span>
+            <div class="flex space-x-2">
+              <button id="prevReviewBtn" class="bg-white border text-xs px-2.5 py-1 rounded hover:bg-slate-50 font-medium">
+                ← 前の生徒
+              </button>
+              <button id="nextReviewBtn" class="bg-indigo-600 text-white text-xs px-2.5 py-1 rounded hover:bg-indigo-700 font-medium">
+                次の生徒 →
+              </button>
+            </div>
+          </div>
+
+          <!-- 設問一覧スクロールエリア -->
+          <div id="reviewQuestionsList" class="flex-1 overflow-y-auto pr-1 space-y-3">
+            <!-- app.js で動的描画 -->
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+
+    <!-- ======================================================== -->
+    <!-- タブ 6: Excel出力・成績一覧 -->
+    <!-- ======================================================== -->
+    <section id="tab-export" class="tab-content hidden">
+      <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 border-b mb-6 gap-4">
+          <div>
+            <h2 class="text-lg font-bold text-slate-900">成績一覧表 ＆ Excel（.xlsx）エクスポート</h2>
+            <p class="text-xs text-slate-500 mt-0.5">受験番号・氏名・セクション小計・総合得点を含んだ帳票を出力します</p>
+          </div>
+          <div class="flex items-center space-x-3 w-full sm:w-auto">
+            <input type="text" id="examTitleInput" value="試験成績一覧表" 
+                   class="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none w-48">
+            <button id="exportExcelBtn" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm px-5 py-2 rounded-lg shadow transition flex items-center space-x-2 whitespace-nowrap">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+              </svg>
+              <span>Excelダウンロード (.xlsx)</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 一覧テーブルプレビュー -->
+        <div class="overflow-x-auto border rounded-lg">
+          <table class="w-full text-left text-xs">
+            <thead id="exportTableHead" class="bg-slate-50"></thead>
+            <tbody id="exportTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- 採点進行中モーダル -->
+  <div id="gradingProgressModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+    <div class="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl mx-4 text-center">
+      <div class="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-3 animate-pulse">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+        </svg>
+      </div>
+      <h3 class="text-base font-bold text-slate-900">AI採点を実行中...</h3>
+      <p id="gradingCurrentStudentText" class="text-xs text-slate-500 mt-1 font-mono">採点中: 1 / 10 人目</p>
+
+      <div class="w-full bg-slate-100 rounded-full h-3 mt-4 overflow-hidden">
+        <div id="gradingProgressBar" class="bg-indigo-600 h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
+      </div>
+      <span id="gradingProgressPercent" class="text-xs font-mono font-bold text-indigo-600 mt-1 inline-block">0%</span>
+    </div>
+  </div>
+
+  <!-- APIキー取得ガイドモーダル -->
+  <div id="apiKeyGuideModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+    <div class="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl mx-4 relative text-left">
+      <button id="closeApiKeyGuideBtn" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-lg font-bold">
+        ✕
+      </button>
+
+      <div class="flex items-center space-x-2.5 mb-3">
+        <span class="text-2xl">🔑</span>
+        <div>
+          <h3 class="text-base font-bold text-slate-900">Gemini APIキーの無料取得手順（約1分）</h3>
+          <p class="text-xs text-slate-500">Googleアカウントがあれば完全無料・クレジットカード不要で即座に発行できます</p>
+        </div>
+      </div>
+
+      <div class="space-y-3 text-xs text-slate-700 bg-slate-50 p-4 rounded-xl border border-slate-200 mb-4">
+        <div class="flex items-start space-x-2">
+          <span class="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-[11px] shrink-0 mt-0.5">1</span>
+          <div>
+            <span class="font-bold text-slate-900">Google AI Studio にアクセス:</span>
+            <p class="text-slate-600 mt-0.5">以下のボタンをクリックし、お持ちのGoogleアカウントでログインします。</p>
+            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" 
+               class="inline-flex items-center space-x-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded mt-1.5 transition text-xs shadow-sm">
+              <span>🔗 Google AI Studio でキーを発行する</span>
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+            </a>
+          </div>
+        </div>
+
+        <div class="flex items-start space-x-2 pt-2 border-t border-slate-200">
+          <span class="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-[11px] shrink-0 mt-0.5">2</span>
+          <div>
+            <span class="font-bold text-slate-900">「Create API key」をクリック:</span>
+            <p class="text-slate-600 mt-0.5">青い「Create API key」ボタンを押し、表示された英数字のキー（例: <code>AIzaSy...</code>）をコピーします。</p>
+          </div>
+        </div>
+
+        <div class="flex items-start space-x-2 pt-2 border-t border-slate-200">
+          <span class="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-[11px] shrink-0 mt-0.5">3</span>
+          <div>
+            <span class="font-bold text-slate-900">本アプリの「Gemini Key」に貼り付けて「保存」:</span>
+            <p class="text-slate-600 mt-0.5">画面右上の枠にペーストして「保存」を押せば完了です。ブラウザ内に安全に記憶されます。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-amber-50 border border-amber-200 text-amber-900 px-3 py-2 rounded-lg text-[11px] mb-4">
+        <strong>💡 無料枠について:</strong> Google AI Studioの無料枠で1分間に15回まで採点リクエストが可能です。通常の試験採点であれば無料の範囲内で十分に運用いただけます。
+      </div>
+
+      <button id="closeApiKeyGuideBtn2" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 rounded-lg text-xs transition">
+        閉じる
+      </button>
+    </div>
+  </div>
+
+  <!-- トースト通知 -->
+  <div id="toast" class="fixed bottom-5 right-5 bg-slate-900 text-white text-xs font-semibold px-4 py-2.5 rounded-lg shadow-xl opacity-0 pointer-events-none transition-opacity duration-300 z-50">
+    メッセージ
+  </div>
+
+  <!-- アプリケーションスクリプト -->
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
