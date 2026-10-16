@@ -1024,19 +1024,24 @@ class GradingApp {
     let failedCount = 0;
     let firstErrorMsg = '';
 
-    // ブーストモード判定（ONなら3人同時、OFFなら1人ずつ）
-    const isBoost = document.getElementById('boostModeCheckbox')?.checked ?? true;
+    // ブーストモード判定（デフォルトOFF: 無料枠5回/分制限対策。ONなら3人同時）
+    const isBoost = document.getElementById('boostModeCheckbox')?.checked ?? false;
     const concurrency = isBoost ? 3 : 1;
 
     // 単一生徒の採点実行ヘルパー
     const gradeSingleStudent = async (student, index) => {
-      document.getElementById('gradingCurrentStudentText').textContent = 
-        `${isBoost ? '⚡ [ブースト稼働中] ' : ''}採点中 (${completedCount + 1}/${totalStudents}): 受験番号 ${student.examNumber} - ${student.name}`;
+      const updateStatus = (msg) => {
+        document.getElementById('gradingCurrentStudentText').textContent = msg;
+      };
+
+      updateStatus(
+        `${isBoost ? '⚡ [ブースト稼働中] ' : ''}採点中 (${completedCount + 1}/${totalStudents}): 受験番号 ${student.examNumber} - ${student.name}`
+      );
 
       const studentImages = (student.pageIndices || []).map(pIdx => this.pageImages[pIdx]);
 
       try {
-        const gradeResult = await this.grader.gradeStudent(studentImages, this.sections, student);
+        const gradeResult = await this.grader.gradeStudent(studentImages, this.sections, student, updateStatus);
 
         student.grades = {};
         if (gradeResult && Array.isArray(gradeResult.results)) {
@@ -1086,8 +1091,8 @@ class GradingApp {
         const item = queue.shift();
         if (item) {
           await gradeSingleStudent(item.student, item.index);
-          // わずかなウェイト（レートリミット保護・RPM制限対策）
-          await new Promise(r => setTimeout(r, 400));
+          // 無料枠5回/分を保護するための安全インターバル
+          await new Promise(r => setTimeout(r, isBoost ? 400 : 1500));
         }
       }
     });
@@ -1344,7 +1349,9 @@ class GradingApp {
 
     try {
       this.showToast(`生徒 ${student.examNumber} (${student.name}) を再採点中...`);
-      const gradeResult = await this.grader.gradeStudent(studentImages, this.sections, student);
+      const gradeResult = await this.grader.gradeStudent(studentImages, this.sections, student, (msg) => {
+        btn.innerHTML = `<span class="text-[11px]">${msg}</span>`;
+      });
 
       student.grades = {};
       if (gradeResult && Array.isArray(gradeResult.results)) {

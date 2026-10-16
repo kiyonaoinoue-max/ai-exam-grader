@@ -42,7 +42,7 @@ export class GeminiGrader {
    * @param {object} studentInfo - 生徒情報 { examNumber, name }
    * @returns {Promise<object>} - 採点結果オブジェクト
    */
-  async gradeStudent(pageImagesBase64, sections, studentInfo = {}) {
+  async gradeStudent(pageImagesBase64, sections, studentInfo = {}, onProgress = null) {
     if (!this.apiKey) {
       // APIキー未設定時は警告を表示し、未採点状態（空欄）として返す
       return this._mockGrade(sections, studentInfo);
@@ -177,9 +177,25 @@ ${JSON.stringify(questionsList, null, 2)}
           }
           // 429 (Rate Limit) または 503 (Overloaded) の場合は待機して自動リトライ
           if ((response.status === 429 || response.status === 503) && attempt < maxRetries) {
-            const waitTime = (attempt + 1) * 2000;
-            console.warn(`Gemini API (${response.status}) 混雑/レート制限を検知。${waitTime}ms 後に再試行します... (試行 ${attempt + 1}/${maxRetries})`);
-            await new Promise(r => setTimeout(r, waitTime));
+            // Google APIレスポンスから指定された秒数を自動解析（例: retry in 50.4s または retryDelay: "50s"）
+            let waitSeconds = (attempt + 1) * 20; // デフォルト20秒、40秒、60秒
+            const retryMatch = errText.match(/retry in ([0-9.]+)s/i) || errText.match(/"retryDelay":\s*"([0-9.]+)s"/i);
+            if (retryMatch && parseFloat(retryMatch[1])) {
+              waitSeconds = Math.ceil(parseFloat(retryMatch[1])) + 2; // 安全マージン+2秒
+            }
+
+            console.warn(`Gemini API (429 レート制限: 無料枠5回/分) を検知。${waitSeconds}秒後に自動再開します... (試行 ${attempt + 1}/${maxRetries})`);
+
+            // 1秒刻みでカウントダウン待機
+            for (let s = waitSeconds; s > 0; s--) {
+              if (onProgress) {
+                onProgress(`⏳ 無料枠API制限(5回/分)のため待機中: あと ${s} 秒で自動再開... (${studentInfo.name || studentInfo.examNumber})`);
+              }
+              await new Promise(r => setTimeout(r, 1000));
+            }
+            if (onProgress) {
+              onProgress(`🔄 制限解除。採点を再開中... (${studentInfo.name || studentInfo.examNumber})`);
+            }
             continue;
           }
           throw new Error(`Gemini API エラー (${response.status}): ${errText}`);
