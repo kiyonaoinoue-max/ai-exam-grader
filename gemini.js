@@ -4,7 +4,7 @@
  */
 
 export class GeminiGrader {
-  constructor(apiKey = '', model = 'gemini-1.5-flash') {
+  constructor(apiKey = '', model = 'gemini-2.0-flash') {
     this.apiKey = apiKey;
     this.model = model;
   }
@@ -121,8 +121,7 @@ ${JSON.stringify(questionsList, null, 2)}
       });
     });
 
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`;
-
+    let currentModel = this.model;
     const requestBody = {
       contents: [{ parts: parts }],
       generationConfig: {
@@ -133,6 +132,7 @@ ${JSON.stringify(questionsList, null, 2)}
 
     const maxRetries = 3;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${this.apiKey}`;
       try {
         const response = await fetch(endpoint, {
           method: 'POST',
@@ -142,6 +142,13 @@ ${JSON.stringify(questionsList, null, 2)}
 
         if (!response.ok) {
           const errText = await response.text();
+          // 404 (Model not found) の場合、標準の gemini-2.0-flash へ自動フォールバック
+          if (response.status === 404 && currentModel !== 'gemini-2.0-flash' && attempt < maxRetries) {
+            console.warn(`モデル ${currentModel} が404(未対応)のため、標準の gemini-2.0-flash へ自動切り替えして再試行します...`);
+            currentModel = 'gemini-2.0-flash';
+            this.model = 'gemini-2.0-flash';
+            continue;
+          }
           // 429 (Rate Limit) または 503 (Overloaded) の場合は待機して自動リトライ
           if ((response.status === 429 || response.status === 503) && attempt < maxRetries) {
             const waitTime = (attempt + 1) * 2000;

@@ -50,10 +50,10 @@ class GradingApp {
       document.getElementById('apiKeyInput').value = savedApiKey;
       this.grader.setApiKey(savedApiKey);
     }
-    let savedModel = localStorage.getItem('gemini_model') || 'gemini-1.5-flash';
-    // 旧バージョンの未対応モデルが残っている場合は自動的に 1.5-flash にマイグレーション
-    if (savedModel === 'gemini-2.5-flash') {
-      savedModel = 'gemini-1.5-flash';
+    let savedModel = localStorage.getItem('gemini_model') || 'gemini-2.0-flash';
+    // 廃止された旧モデル（1.5系や2.5）が残っている場合は自動的に 2.0-flash にマイグレーション
+    if (savedModel === 'gemini-1.5-flash' || savedModel === 'gemini-2.5-flash' || savedModel === 'gemini-1.5-pro') {
+      savedModel = 'gemini-2.0-flash';
       localStorage.setItem('gemini_model', savedModel);
     }
     document.getElementById('modelSelect').value = savedModel;
@@ -1082,7 +1082,7 @@ class GradingApp {
         } else if (firstErrorMsg.includes('403')) {
           advice = 'APIキーの利用権限（アクセス制限）をご確認ください。';
         } else if (firstErrorMsg.includes('404')) {
-          advice = '選択されたモデルが見つかりません。画面右上で「Gemini 1.5 Flash」に切り替えてお試しください。';
+          advice = '選択されたモデルが見つかりません。画面右上で「Gemini 2.0 Flash」に切り替えてお試しください。';
         } else if (firstErrorMsg.includes('Failed to fetch') || firstErrorMsg.includes('NetworkError')) {
           advice = 'APIサーバーへの通信がブロックされました。Chromeの広告ブロック機能（AdBlock, uBlock等）やセキュリティソフトをご確認ください。';
         }
