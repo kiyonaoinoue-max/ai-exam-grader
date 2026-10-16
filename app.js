@@ -1108,7 +1108,13 @@ class GradingApp {
       // 全員失敗した場合の親切な診断ポップアップ
       if (failedCount === totalStudents && totalStudents > 0) {
         let advice = 'Gemini APIキーが有効か、通信環境（広告ブロック・プロキシ等）をご確認ください。';
-        if (firstErrorMsg.includes('400') || firstErrorMsg.includes('API_KEY_INVALID')) {
+        if (firstErrorMsg.includes('DAILY_QUOTA_EXHAUSTED') || firstErrorMsg.includes('429')) {
+          advice = '本日の無料枠（1日あたりのリクエスト数）を使い切った可能性があります。\n' +
+                   '・画面右上のモデルを別のもの（例: Gemini 2.5 Flash）に切り替える\n' +
+                   '・別のGoogleアカウントで取得したAPIキーを使う\n' +
+                   '・Google AI Studioで課金設定（Pay-as-you-go）を有効にする\n' +
+                   '・翌日（太平洋時間の0時＝日本時間の夕方頃）にリセットされるのを待つ';
+        } else if (firstErrorMsg.includes('400') || firstErrorMsg.includes('API_KEY_INVALID')) {
           advice = 'APIキーが無効またはスペルミスがあります。Google AI Studioで再確認してください。';
         } else if (firstErrorMsg.includes('403')) {
           advice = 'APIキーの利用権限（アクセス制限）をご確認ください。';

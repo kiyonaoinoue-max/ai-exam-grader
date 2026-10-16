@@ -184,6 +184,15 @@ ${JSON.stringify(questionsList, null, 2)}
               waitSeconds = Math.ceil(parseFloat(retryMatch[1])) + 2; // 安全マージン+2秒
             }
 
+            // 待ち時間が長すぎる場合は「1日あたりの無料枠」を使い切った状態。待たずに明確なエラーにする
+            if (waitSeconds > 120 || /PerDay/i.test(errText)) {
+              const hours = (waitSeconds / 3600).toFixed(1);
+              throw new Error(
+                `DAILY_QUOTA_EXHAUSTED: 本日の無料枠を使い切りました（解除まで約${hours}時間）。` +
+                `別のモデルに切り替えるか、別のAPIキー/課金設定をご利用ください。\n` + errText
+              );
+            }
+
             console.warn(`Gemini API (429 レート制限: 無料枠5回/分) を検知。${waitSeconds}秒後に自動再開します... (試行 ${attempt + 1}/${maxRetries})`);
 
             // 1秒刻みでカウントダウン待機
@@ -229,8 +238,11 @@ ${JSON.stringify(questionsList, null, 2)}
         return parsed;
 
       } catch (err) {
-        if (attempt >= maxRetries) {
-          console.error(`Gemini 採点呼び出し失敗 (最大リトライ超過・生徒: ${studentInfo.examNumber}):`, err);
+        // 1日枠の枯渇・HTTPエラー（400/403等）はリトライしても無駄なので即座に投げる
+        const msg = err && err.message ? err.message : '';
+        const nonRetryable = msg.startsWith('DAILY_QUOTA_EXHAUSTED') || msg.startsWith('Gemini API エラー');
+        if (nonRetryable || attempt >= maxRetries) {
+          console.error(`Gemini 採点呼び出し失敗 (生徒: ${studentInfo.examNumber}):`, err);
           throw err;
         }
       }
