@@ -49,11 +49,12 @@ class GradingApp {
     if (savedApiKey) {
       document.getElementById('apiKeyInput').value = savedApiKey;
       this.grader.setApiKey(savedApiKey);
+      this.updateModelSelectOptions();
     }
-    let savedModel = localStorage.getItem('gemini_model') || 'gemini-2.0-flash';
-    // 廃止された旧モデル（1.5系や2.5）が残っている場合は自動的に 2.0-flash にマイグレーション
-    if (savedModel === 'gemini-1.5-flash' || savedModel === 'gemini-2.5-flash' || savedModel === 'gemini-1.5-pro') {
-      savedModel = 'gemini-2.0-flash';
+    let savedModel = localStorage.getItem('gemini_model') || 'gemini-3.8-flash';
+    // 廃止された旧モデルが残っている場合は自動的に 3.8-flash にマイグレーション
+    if (savedModel === 'gemini-1.5-flash' || savedModel === 'gemini-2.0-flash' || savedModel === 'gemini-1.5-pro') {
+      savedModel = 'gemini-3.8-flash';
       localStorage.setItem('gemini_model', savedModel);
     }
     document.getElementById('modelSelect').value = savedModel;
@@ -62,7 +63,7 @@ class GradingApp {
     if (targetModelElem) targetModelElem.textContent = savedModel;
   }
 
-  saveSettings() {
+  async saveSettings() {
     const apiKey = document.getElementById('apiKeyInput').value.trim();
     const model = document.getElementById('modelSelect').value;
     localStorage.setItem('gemini_api_key', apiKey);
@@ -72,6 +73,31 @@ class GradingApp {
     const targetModelElem = document.getElementById('gradeTargetModelName');
     if (targetModelElem) targetModelElem.textContent = model;
     this.showToast('設定を保存しました');
+    if (apiKey) {
+      await this.updateModelSelectOptions();
+    }
+  }
+
+  // APIキーを使って最新の利用可能モデルをプルダウンに動的反映
+  async updateModelSelectOptions() {
+    const available = await this.grader.fetchAvailableModels();
+    if (!available || available.length === 0) return;
+
+    const select = document.getElementById('modelSelect');
+    if (!select) return;
+    const currentVal = select.value;
+    const existing = Array.from(select.options).map(o => o.value);
+    available.forEach(m => {
+      if (!existing.includes(m)) {
+        const opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = m;
+        select.appendChild(opt);
+      }
+    });
+    if (Array.from(select.options).some(o => o.value === currentVal)) {
+      select.value = currentVal;
+    }
   }
 
   // イベントリスナーの登録
@@ -1082,7 +1108,7 @@ class GradingApp {
         } else if (firstErrorMsg.includes('403')) {
           advice = 'APIキーの利用権限（アクセス制限）をご確認ください。';
         } else if (firstErrorMsg.includes('404')) {
-          advice = '選択されたモデルが見つかりません。画面右上で「Gemini 2.0 Flash」に切り替えてお試しください。';
+          advice = '選択されたモデルが見つかりません。画面右上で「Gemini 3.8 Flash」に切り替えてお試しください。';
         } else if (firstErrorMsg.includes('Failed to fetch') || firstErrorMsg.includes('NetworkError')) {
           advice = 'APIサーバーへの通信がブロックされました。Chromeの広告ブロック機能（AdBlock, uBlock等）やセキュリティソフトをご確認ください。';
         }

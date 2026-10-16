@@ -4,7 +4,7 @@
  */
 
 export class GeminiGrader {
-  constructor(apiKey = '', model = 'gemini-2.0-flash') {
+  constructor(apiKey = '', model = 'gemini-3.8-flash') {
     this.apiKey = apiKey;
     this.model = model;
   }
@@ -15,6 +15,24 @@ export class GeminiGrader {
 
   setModel(modelName) {
     this.model = modelName;
+  }
+
+  /**
+   * APIキーで利用可能なモデル一覧を動的取得
+   */
+  async fetchAvailableModels() {
+    if (!this.apiKey) return [];
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${this.apiKey}`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      return (data.models || [])
+        .filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent'))
+        .map(m => m.name.replace('models/', ''));
+    } catch (e) {
+      console.warn('利用可能モデル一覧の取得に失敗:', e);
+      return [];
+    }
   }
 
   /**
@@ -142,12 +160,20 @@ ${JSON.stringify(questionsList, null, 2)}
 
         if (!response.ok) {
           const errText = await response.text();
-          // 404 (Model not found) の場合、標準の gemini-2.0-flash へ自動フォールバック
-          if (response.status === 404 && currentModel !== 'gemini-2.0-flash' && attempt < maxRetries) {
-            console.warn(`モデル ${currentModel} が404(未対応)のため、標準の gemini-2.0-flash へ自動切り替えして再試行します...`);
-            currentModel = 'gemini-2.0-flash';
-            this.model = 'gemini-2.0-flash';
-            continue;
+          // 404 (Model not found / retired) の場合、エラーメッセージ内の指定モデルまたは gemini-3.8-flash へ自動フォールバック
+          if (response.status === 404 && attempt < maxRetries) {
+            let nextModel = 'gemini-3.8-flash';
+            // Google APIエラー文中の "Please update your code to use models/..." を自動抽出
+            const match = errText.match(/models\/([a-zA-Z0-9.\-_]+)/);
+            if (match && match[1] && match[1] !== currentModel) {
+              nextModel = match[1];
+            }
+            if (nextModel !== currentModel) {
+              console.warn(`モデル ${currentModel} が404のため、推奨モデル ${nextModel} へ自動切り替えして再試行します...`);
+              currentModel = nextModel;
+              this.model = nextModel;
+              continue;
+            }
           }
           // 429 (Rate Limit) または 503 (Overloaded) の場合は待機して自動リトライ
           if ((response.status === 429 || response.status === 503) && attempt < maxRetries) {
